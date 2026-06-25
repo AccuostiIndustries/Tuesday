@@ -1,0 +1,18 @@
+[project]
+name = "Tuesday"
+version = "1.0.0"
+description = "Tuesday is a powerful and easy-to-use BPE Tokenizer."
+readme = "README.md"
+license = { file = "LICENSE" }
+authors = [{ name = "caustin" }, { email = "caustin@accuostiindustries.com" }]
+dependencies = ["regex"]
+requires-python = ">=3.12.7"
+
+[project.urls]
+homepage = "https://github.com/accuostiindustries/Tuesday"
+repository = "https://github.com/accuostiindustries/Tuesday"
+changelog = "https://github.com/accuostiindustries/Tuesday/CHANGELOG.md"
+
+[build-system]
+requires = ["setuptools>=61"]
+build-backend = "setuptools.build_meta"
