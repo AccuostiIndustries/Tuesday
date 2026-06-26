@@ -1,4 +1,60 @@
 import json
+import heapq
+
+"""""""""
+This file contains helper functions, structures, and other resources that are critical to the operation of Tuesday
+"""""""""
+
+# ================================================
+# Structures
+
+class Node():
+    def __init__(self, prev, id, next):
+        self.prev = prev
+        self.id = id
+        self.next = next
+
+# ================================================
+# Helper functions
+
+def build_list(chunk):
+    """
+    Accepts a list of token ids and returns the head of a linked list.
+    """
+    head = Node(None, chunk[0], None)
+
+    current = head
+    for i,_ in enumerate(chunk):
+        if i < len(chunk) - 1:
+            new = Node(current, chunk[i+1], None)
+            current.next = new
+            current = new
+
+    return head
+
+def build_heap(head, merges):
+    """
+    Accepts the head node of a linked list and the merges dictionary.
+    Returns a heap.
+    """
+    heap = []
+    counter = 0
+    
+    node = head
+    while node is not None:
+        if node.next is not None:
+            pair = (node.id, node.next.id)
+
+            if pair in merges:
+                heapq.heappush(heap, (merges[pair], counter, pair, node, node.next))
+                counter += 1
+
+        node = node.next
+
+    return heap
+
+# ================================================
+# The base tokenizer class 
 
 class BaseTokenizer:
     def __init__(self):
@@ -19,7 +75,8 @@ class BaseTokenizer:
     
     def buildVocab(self, specials=None):
         """
-        Specials is None by default, but you can optionally pass in a list of special tokens.  
+        Specials is None by default, but you can optionally pass in a list of special tokens.
+        This function returns a dictionary for both vocab and special tokens.  
         """
         vocab = {}
         special_tokens = {}
@@ -38,10 +95,8 @@ class BaseTokenizer:
         
     def loadState(self, file):
         """
-        This provided load function accepts a json and returns the merges, vocab, and specials from it.
-        
-        The Tokenizer expects the JSON to be formatted: 
-        {"merges": [[x,y,z]], "specials": {"int":string}, "vocab": {"int":[bytes]}} 
+        This provided load function accepts a json in the following format: 
+        {"merges": [[x,y,z],[x,y,z]], "specials": {"id":special}, "vocab": {"id":[bytes]}} 
         """
         merges = {}
         vocab = {}

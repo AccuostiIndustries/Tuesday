@@ -1,5 +1,6 @@
-from .Foundation import BaseTokenizer
+from .Foundation import BaseTokenizer, build_list, build_heap
 import regex as re
+import heapq
 
 PATTERN = r"""'(?i:[sdmt]|ll|ve|re)|[^\r\n\p{L}\p{N}]?+\p{L}++|\p{N}{1,3}+| ?[^\s\p{L}\p{N}]++[\r\n]*+|\s++$|\s*[\r\n]|\s+(?!\S)|\s"""
 
@@ -8,20 +9,20 @@ class Tuesday(BaseTokenizer):
         super().__init__()
         self.pattern = re.compile(PATTERN)
     
-    def merge_pair(self, encodings, pair, new_id):
-        merged = []
+    # def merge_pair(self, encodings, pair, new_id):
+    #     merged = []
 
-        i = 0
-        for _ in encodings:
-            if i < len(encodings):
-                if i < len(encodings) - 1 and pair[0] == encodings[i] and pair[1] == encodings[i + 1]:
-                    merged.append(new_id)
-                    i += 2
-                else:
-                    merged.append(encodings[i])
-                    i += 1
+    #     i = 0
+    #     for _ in encodings:
+    #         if i < len(encodings):
+    #             if i < len(encodings) - 1 and pair[0] == encodings[i] and pair[1] == encodings[i + 1]:
+    #                 merged.append(new_id)
+    #                 i += 2
+    #             else:
+    #                 merged.append(encodings[i])
+    #                 i += 1
 
-        return merged
+    #     return merged
 
     def register_special(self, special_tokens, starting_id):
         specials = {}
@@ -62,13 +63,52 @@ class Tuesday(BaseTokenizer):
         else:
             encoded_chunks = self.encode_chunk(text)
 
-        for merge in merges:
-            merged_chunks = []
-            for chunk in encoded_chunks:
-                merged_chunks.append(self.merge_pair(chunk, merge, merges[merge]))
-            encoded_chunks = merged_chunks
+        merged_chunks = []
+        for chunk in encoded_chunks:
+            merged_chunks.append(self.encode_performance(chunk, merges))
+        encoded_chunks = merged_chunks
+
         encoded_chunks = [encoding for chunk in merged_chunks for encoding in chunk]
         return encoded_chunks
+    
+    def encode_performance(self, chunk, merges):
+        encodings = []
+
+        link = build_list(chunk) 
+        heap = build_heap(link, merges)
+
+        while heap:
+            # Where left.id == x and right.id == y in (x, y) 
+            # left.id == x in pair because heap contains (r, p, node, node.next)
+            rank, _, pair, left, right = heapq.heappop(heap)
+
+            if left.id == pair[0] and right.id == pair[1] and left.next == right:
+                # Perform merge
+                left.id = rank
+                left.next = right.next
+
+                # Unlink
+                if right.next is not None:
+                    right.next.prev = left
+
+                if left.prev is not None:
+                    new_pair = (left.prev.id, left.id)
+                    if new_pair in merges:
+                        heapq.heappush(heap, (merges[new_pair], _, new_pair, left.prev, left))
+
+                if right.next is not None:
+                    new_pair = (left.id, left.next.id)
+                    if new_pair in merges:
+                        heapq.heappush(heap, (merges[new_pair], _, new_pair, left, left.next))
+            else:
+                continue
+
+        node = link
+        while node is not None:
+            encodings.append(node.id)
+            node = node.next
+
+        return encodings
 
     def decode(self, ids, vocab, specials=None):
         bytes = []
@@ -80,5 +120,5 @@ class Tuesday(BaseTokenizer):
                 bytes.append(vocab[id])
 
         byte = b''.join(bytes)
-        decoded = byte.decode("utf-8")
+        decoded = byte.decode("utf-8", errors="replace")
         return decoded
