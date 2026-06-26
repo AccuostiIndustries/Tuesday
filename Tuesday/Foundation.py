@@ -53,6 +53,21 @@ def build_heap(head, merges):
 
     return heap
 
+def merge_pair(encodings, pair, new_id):
+    merged = []
+
+    i = 0
+    for _ in encodings:
+        if i < len(encodings):
+            if i < len(encodings) - 1 and pair[0] == encodings[i] and pair[1] == encodings[i + 1]:
+                merged.append(new_id)
+                i += 2
+            else:
+                merged.append(encodings[i])
+                i += 1
+
+    return merged
+
 # ================================================
 # The base tokenizer class 
 

@@ -1,4 +1,4 @@
-from .Foundation import BaseTokenizer, build_list, build_heap
+from .Foundation import BaseTokenizer, build_list, build_heap, merge_pair
 import regex as re
 import heapq
 
@@ -9,21 +9,6 @@ class Tuesday(BaseTokenizer):
         super().__init__()
         self.pattern = re.compile(PATTERN)
     
-    # def merge_pair(self, encodings, pair, new_id):
-    #     merged = []
-
-    #     i = 0
-    #     for _ in encodings:
-    #         if i < len(encodings):
-    #             if i < len(encodings) - 1 and pair[0] == encodings[i] and pair[1] == encodings[i + 1]:
-    #                 merged.append(new_id)
-    #                 i += 2
-    #             else:
-    #                 merged.append(encodings[i])
-    #                 i += 1
-
-    #     return merged
-
     def register_special(self, special_tokens, starting_id):
         specials = {}
 
@@ -46,30 +31,36 @@ class Tuesday(BaseTokenizer):
             encoded_chunk.append(self.getEncoding(split))
 
         return encoded_chunk
-
-    def encode(self, text, merges, specials=None):
-        encoded_chunks = []
+    
+    def encode(self, text, merges, specials=None, fast_encode=False):
+        encodings = []
 
         if specials is not None:
-            split_text = self.split_on_special(text)
-            for word in split_text:
-                encoded_word = self.getEncoding(word)
-                for k,v in specials.items():
-                    encoded_special = self.getEncoding(v)
-                    if encoded_word == encoded_special:
-                        encoded_chunks.append([k])
-                    else: 
-                        encoded_chunks.append(encoded_word)
+            segments = self.split_on_special(text)
         else:
-            encoded_chunks = self.encode_chunk(text)
+            segments = [text]
 
-        merged_chunks = []
-        for chunk in encoded_chunks:
-            merged_chunks.append(self.encode_performance(chunk, merges))
-        encoded_chunks = merged_chunks
+        special_lookup = {v:k for k,v in specials.items()} if specials else {}
 
-        encoded_chunks = [encoding for chunk in merged_chunks for encoding in chunk]
-        return encoded_chunks
+        for segment in segments:
+            if segment in special_lookup:
+                encodings.append(special_lookup[segment])
+                continue
+
+            if not fast_encode:
+                chunks = self.encode_chunk(segment)
+                for pair,new_id in merges.items():
+                    chunks = [self.merge_pair(chunk, pair, new_id) for chunk in chunks]
+                encodings.extend(token for chunk in chunks for token in chunk)
+            elif fast_encode == True:
+                for word in re.findall(self.pattern, segment):
+                    ids = self.getEncoding(word)
+                    merged = self.encode_performance(ids, merges)
+                    encodings.extend(merged)
+            else:
+                raise ValueError(f"Encode type {fast_encode} is not valid")
+            
+        return encodings
     
     def encode_performance(self, chunk, merges):
         encodings = []
@@ -93,13 +84,15 @@ class Tuesday(BaseTokenizer):
 
                 if left.prev is not None:
                     new_pair = (left.prev.id, left.id)
-                    if new_pair in merges:
-                        heapq.heappush(heap, (merges[new_pair], _, new_pair, left.prev, left))
+                    rank = merges.get(new_pair)
+                    if rank is not None:
+                        heapq.heappush(heap, (rank, _, new_pair, left.prev, left))
 
                 if right.next is not None:
                     new_pair = (left.id, left.next.id)
-                    if new_pair in merges:
-                        heapq.heappush(heap, (merges[new_pair], _, new_pair, left, left.next))
+                    rank = merges.get(new_pair)
+                    if rank is not None:
+                        heapq.heappush(heap, (rank, _, new_pair, left, left.next))
             else:
                 continue
 
